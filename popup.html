@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>boss-job-fetch</title>
+  <style>
+    body {
+      width: 400px;
+      padding: 15px;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #222;
+      background: #fff;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 12px 0;
+      color: #1a1a1a;
+    }
+    .stats {
+      background: #f6f7f8;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      line-height: 1.9;
+    }
+    .stats b {
+      color: #00786f;
+      font-size: 15px;
+      margin: 0 2px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      background: #e6f7ff;
+      color: #0958d9;
+    }
+    .pill.ok { background: #e8f8f0; color: #00794f; }
+    .pill.warn { background: #fff4e6; color: #d46b08; }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: inherit;
+      transition: background-color .15s, border-color .15s, color .15s;
+    }
+    button:disabled { opacity: .5; cursor: default; }
+    /* 主操作：品牌色实心 */
+    .btn-full { background: #00bebd; color: #fff; font-weight: 600; }
+    .btn-full:hover:not(:disabled) { background: #00a9a8; }
+    /* 次操作：白底描边，阅读型入口用品牌色描边 */
+    .btn-primary { background: #fff; color: #00786f; border: 1px solid #00bebd; font-weight: 500; }
+    .btn-primary:hover:not(:disabled) { background: #f0fbfb; }
+    .btn-extract { background: #fff; color: #595959; border: 1px solid #d9d9d9; }
+    .btn-extract:hover:not(:disabled) { border-color: #00bebd; color: #00786f; }
+    /* 提示类 */
+    .btn-retry { background: #fff; color: #ad6800; border: 1px solid #ffd591; }
+    .btn-retry:hover:not(:disabled) { background: #fffaf0; }
+    .btn-purge { background: #fff; color: #8c8c8c; border: 1px dashed #d9d9d9; }
+    .btn-purge.confirming { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+    /* 危险操作：只留红字红边，不做实心红 */
+    .btn-danger { background: #fff; color: #cf1322; border: 1px solid #ffccc7; }
+    .btn-danger:hover:not(:disabled) { background: #fff1f0; }
+    .switch-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 4px;
+      padding: 8px 10px;
+      background: #fafafa;
+      border: 1px solid #f0f0f0;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #595959;
+      cursor: pointer;
+      line-height: 1.5;
+    }
+    .switch-row input { margin: 0; width: 14px; height: 14px; flex: none; }
+    .log {
+      margin-top: 10px;
+      padding: 10px;
+      background: #1e1e1e;
+      color: #4ade80;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px;
+      line-height: 1.7;
+      max-height: 180px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <h1>boss-job-fetch v1.0</h1>
+
+  <div class="stats">
+    <div>已收集岗位：<b id="total">0</b>个 &nbsp;·&nbsp; 含 JD 正文：<b id="withDesc">0</b>个</div>
+    <div>自动采集：<span class="pill" id="autoStatus">检测中...</span></div>
+    <div id="progressLine" style="display:none; color:#00786f;">
+      补全进度：<b id="pgDone">0</b> / <b id="pgTotal">0</b>
+    </div>
+    <div id="salaryWarn" style="display:none; color:#cf1322;">
+      薪资异常：<b id="badSalary">0</b> 条，可在数据页做体检
+    </div>
+    <div id="failWarn" style="display:none; color:#ad6800;">
+      抓取失败：<b id="failedNum">0</b> 条<span id="closedNote"></span>
+    </div>
+  </div>
+
+  <button class="btn-full" id="fullBtn">补全全部 JD 正文</button>
+  <button class="btn-retry" id="retryBtn" style="display:none;">重试失败记录</button>
+  <button class="btn-purge" id="purgeClosedBtn" style="display:none;">清理已关闭岗位</button>
+  <label class="switch-row" for="autoDetail">
+    <input type="checkbox" id="autoDetail">
+    <span>打开 BOSS 页面时自动补全</span>
+  </label>
+
+  <button class="btn-extract" id="quickBtn" title="接口失效时从当前页面 DOM 兜底抓取">快速提取</button>
+  <button class="btn-primary" id="exportBtn" title="导出 JSON / CSV，也可复制到剪贴板">打开数据页</button>
+  <button class="btn-danger" id="clearBtn">清空全部数据</button>
+
+  <div id="logArea" class="log" style="display:none;"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

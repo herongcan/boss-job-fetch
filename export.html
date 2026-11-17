@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>岗位数据 · boss-job-fetch</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 28px 32px 60px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f7f8fa;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+    h1 { font-size: 20px; margin: 0; font-weight: 600; }
+    .sub { font-size: 12px; color: #8c8c8c; }
+    .cards { display: flex; gap: 12px; margin: 18px 0; flex-wrap: wrap; }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px 18px;
+      min-width: 132px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .card .label { font-size: 12px; color: #8c8c8c; margin-bottom: 6px; }
+    .card .value { font-size: 22px; font-weight: 600; color: #00b38a; line-height: 1; }
+    .card .value.muted { color: #595959; font-size: 15px; font-weight: 500; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    button {
+      padding: 9px 18px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .primary { background: #00b38a; color: #fff; }
+    .primary:hover:not(:disabled) { background: #009975; }
+    .ghost { background: #fff; color: #333; border-color: #e0e0e0; }
+    .ghost:hover:not(:disabled) { border-color: #bfbfbf; }
+    .danger { background: #fff1f0; color: #cf1322; border-color: #ffccc7; }
+    .panel {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+      overflow: hidden;
+    }
+    .panel-head {
+      padding: 12px 18px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+      color: #595959;
+      display: flex;
+      justify-content: space-between;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #f5f5f5; vertical-align: top; }
+    th { background: #fafafa; font-weight: 500; color: #595959; position: sticky; top: 0; }
+    tr:hover td { background: #fafcff; }
+    td.title { font-weight: 500; max-width: 260px; }
+    td.salary { color: #ff6b35; white-space: nowrap; }
+    td.dim { color: #8c8c8c; }
+    a { color: #1677ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .empty { padding: 60px 20px; text-align: center; color: #8c8c8c; font-size: 14px; line-height: 2; }
+    .tag { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 11px; background: #f0f0f0; color: #595959; }
+    .tag.api { background: #e6f4ff; color: #0958d9; }
+    .tag.detail { background: #f6ffed; color: #237804; }
+    .tag.warn { background: #fff1f0; color: #cf1322; }
+    .toast {
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+      background: #1f1f1f; color: #fff; padding: 10px 20px; border-radius: 8px;
+      font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>岗位数据</h1>
+      <span class="sub">数据存于浏览器本地（chrome.storage.local），不上传任何服务器</span>
+    </header>
+
+    <div class="cards">
+      <div class="card"><div class="label">岗位总数</div><div class="value" id="statTotal">0</div></div>
+      <div class="card"><div class="label">含岗位详情</div><div class="value" id="statDesc">0</div></div>
+      <div class="card"><div class="label">字段完整度</div><div class="value" id="statCoverage">0%</div></div>
+      <div class="card"><div class="label">最近更新</div><div class="value muted" id="statUpdated">—</div></div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="btnJson">下载 JSON</button>
+      <button class="primary" id="btnCsv">下载 CSV（Excel）</button>
+      <button class="ghost" id="btnCopy">复制 JSON 到剪贴板</button>
+      <button class="ghost" id="btnDiag">数据体检</button>
+      <button class="ghost" id="btnReload">刷新</button>
+      <button class="danger" id="btnClear">清空数据</button>
+    </div>
+
+    <div class="panel" id="diagPanel" style="display:none; margin-bottom:18px;">
+      <div class="panel-head">
+        <span>数据体检 · 薪资字段</span>
+        <span id="diagSummary"></span>
+      </div>
+      <div id="diagBody" style="padding:14px 18px; font-size:13px; line-height:1.9;"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span>数据预览</span>
+        <span id="previewNote"></span>
+      </div>
+      <div id="tableWrap"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="export.js"></script>
+</body>
+</html>
