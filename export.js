@@ -39,6 +39,65 @@ const FAIL_REASON = {
 
 let jobs = [];
 
+// ---- 表格排序 ----
+// sortKey 为空 = 保持存储顺序（先采集在前）；点一次升序，再点降序，第三次取消排序
+let sortKey = '';
+let sortDir = '';
+
+const SOURCE_RANK = { 'detail-page': 3, 'click-panel': 2, api: 1, failed: 0 };
+
+// 列定义：key 对应排序字段，label 是表头文案；空 key 表示不可排序的列
+const COLUMNS = [
+  ['title', '职位'],
+  ['salary', '薪资'],
+  ['company', '公司'],
+  ['location', '地点'],
+  ['experience', '经验/学历'],
+  ['skills', '技能'],
+  ['description', '详情'],
+  ['source', '来源'],
+  ['', '']
+];
+
+// 数字列首次点击按降序（薪资、完整度这类默认想看高的）
+const DESC_FIRST = new Set(['salary', 'description', 'source']);
+
+// 取值函数：返回 null 表示该字段为空，排序时永远沉底，不随升降序翻转
+const SORT_VALUE = {
+  title: (job) => job.title || null,
+  salary: (job) => (typeof job.salaryMin === 'number' ? job.salaryMin : null),
+  company: (job) => job.company || null,
+  location: (job) => job.location || null,
+  experience: (job) => job.experience || job.education || null,
+  skills: (job) => (Array.isArray(job.skills) && job.skills.length ? job.skills.join(' / ') : null),
+  description: (job) => (job.description ? job.description.length : null),
+  source: (job) => SOURCE_RANK[job.detailSource] ?? 0
+};
+
+function compareBySort(a, b) {
+  const read = SORT_VALUE[sortKey];
+  const va = read(a);
+  const vb = read(b);
+  if (va === null && vb === null) return 0;
+  if (va === null) return 1;   // 空值固定沉底
+  if (vb === null) return -1;
+  const result =
+    typeof va === 'number' && typeof vb === 'number'
+      ? va - vb
+      : String(va).localeCompare(String(vb), 'zh-CN', { numeric: true });
+  return sortDir === 'desc' ? -result : result;
+}
+
+function sortedJobs() {
+  if (!sortKey) return jobs;
+  return jobs.slice().sort(compareBySort);
+}
+
+function sortLabel() {
+  const column = COLUMNS.find(([key]) => key === sortKey);
+  return column ? `按${column[1]}${sortDir === 'desc' ? '降序' : '升序'}` : '';
+}
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -138,9 +197,10 @@ function render() {
     return;
   }
 
-  const rows = jobs.slice(0, PREVIEW_LIMIT);
+  const rows = sortedJobs().slice(0, PREVIEW_LIMIT);
+  const sortedNote = sortKey ? ` · ${sortLabel()}` : '';
   $('previewNote').textContent =
-    total > PREVIEW_LIMIT ? `共 ${total} 条，预览前 ${PREVIEW_LIMIT} 条` : `共 ${total} 条`;
+    (total > PREVIEW_LIMIT ? `共 ${total} 条，预览前 ${PREVIEW_LIMIT} 条` : `共 ${total} 条`) + sortedNote;
 
   const body = rows
     .map((job) => {
@@ -178,10 +238,16 @@ function render() {
     })
     .join('');
 
+  const head = COLUMNS.map(([key, label]) => {
+    if (!key) return '<th></th>';
+    const active = sortKey === key;
+    const arrow = active ? `<span class="arrow">${sortDir === 'desc' ? '↓' : '↑'}</span>` : '';
+    const tip = active ? '再点切换升降序，第三次恢复采集顺序' : '点击排序';
+    return `<th class="sortable${active ? ' active' : ''}" data-key="${key}" title="${tip}">${label}${arrow}</th>`;
+  }).join('');
+
   wrap.innerHTML = `<table>
-    <thead><tr>
-      <th>职位</th><th>薪资</th><th>公司</th><th>地点</th><th>经验/学历</th><th>技能</th><th>详情</th><th>来源</th><th></th>
-    </tr></thead>
+    <thead><tr>${head}</tr></thead>
     <tbody>${body}</tbody>
   </table>`;
 }
@@ -314,22 +380,41 @@ document.addEventListener('DOMContentLoaded', () => {
   loadJobs().catch((error) => toast('读取失败：' + ((error && error.message) || error)));
 
   $('btnJson').addEventListener('click', () => {
-    download(JSON.stringify(jobs, null, 2), `boss_jobs_${stamp()}.json`, 'application/json;charset=utf-8');
-    toast(`已导出 ${jobs.length} 条 JSON`);
+    const rows = sortedJobs();
+    download(JSON.stringify(rows, null, 2), `boss_jobs_${stamp()}.json`, 'application/json;charset=utf-8');
+    toast(`已导出 ${rows.length} 条 JSON${sortKey ? `（${sortLabel()}）` : ''}`);
   });
 
   $('btnCsv').addEventListener('click', () => {
-    download(toCsv(jobs), `boss_jobs_${stamp()}.csv`, 'text/csv;charset=utf-8');
-    toast(`已导出 ${jobs.length} 条 CSV`);
+    const rows = sortedJobs();
+    download(toCsv(rows), `boss_jobs_${stamp()}.csv`, 'text/csv;charset=utf-8');
+    toast(`已导出 ${rows.length} 条 CSV${sortKey ? `（${sortLabel()}）` : ''}`);
   });
 
   $('btnCopy').addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(jobs, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify(sortedJobs(), null, 2));
       toast('已复制到剪贴板');
     } catch (error) {
       toast('复制失败，请改用下载');
     }
+  });
+
+  // 表头排序：升序 → 降序 → 取消
+  $('tableWrap').addEventListener('click', (event) => {
+    const th = event.target.closest('th[data-key]');
+    if (!th) return;
+    const key = th.dataset.key;
+    if (sortKey !== key) {
+      sortKey = key;
+      sortDir = DESC_FIRST.has(key) ? 'desc' : 'asc';
+    } else if (sortDir === (DESC_FIRST.has(key) ? 'desc' : 'asc')) {
+      sortDir = DESC_FIRST.has(key) ? 'asc' : 'desc';
+    } else {
+      sortKey = '';
+      sortDir = '';
+    }
+    render();
   });
 
   $('btnReload').addEventListener('click', () => {

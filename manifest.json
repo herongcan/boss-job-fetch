@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "boss-job-fetch",
-  "version": "1.0",
+  "name": "boss直聘职位采集器",
+  "version": "1.1",
   "description": "一个专门用来「攒岗位」的 Chrome 扩展。在 BOSS 直聘上正常翻职位，它会把你浏览过的岗位自动记下来——标题、薪资、公司、城市，还有完整的岗位描述。看得差不多了，一键导出成 Excel 或 JSON，拿去对比、排序、跟进投递。",
   "icons": {
     "16": "icon.png",
